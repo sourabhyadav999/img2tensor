@@ -8,12 +8,8 @@ A unified, high-performance utility to convert images into training-ready tensor
 
 ## 🚀 Installation
 
-# Basic (NumPy only)
 pip install img2tensor
 
-# With framework support
-pip install "img2tensor[torch]"
-pip install "img2tensor[tf]"
 
 ---
 
