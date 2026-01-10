@@ -35,13 +35,13 @@ Returns a 3D tensor ($C, H, W$ for PyTorch).
 
 import img2tensor
 
-# Returns: torch.Tensor of shape (3, 224, 224)
+#### Returns: torch.Tensor of shape (3, 224, 224)
 tensor = img2tensor.get_tensor("cat.jpg", tensor_type="pytorch")
 
 ### 2. Batch Loading (In-Memory)
 Returns a 4D tensor ($N, H, W, C$ for NumPy/TF).
 
-# Returns: np.ndarray of shape (32, 224, 224, 3)
+#### Returns: np.ndarray of shape (32, 224, 224, 3)
 batch = img2tensor.get_tensor(list_of_paths, n_jobs=8)
 
 ### 3. Production Pipeline (TFRecord)
@@ -138,12 +138,38 @@ Standard rotations (e.g., $15^\circ$) require interpolation that "guesses" new p
 
 ## 🧠 Design Philosophy
 
-### NCHW vs NHWC
+Our design approach for `img2tensor` is centered on **numerical precision**, **scientific reproducibility**, and **production reliability**. We aim to eliminate the common "silent bugs" that occur during the transition from data loading to model training.
 
-One of the most frequent bugs in Computer Vision pipelines is passing the wrong channel layout. `img2tensor` detects your framework and adjusts automatically:
-* **PyTorch:** Returns $N \times C \times H \times W$ (and ensures memory is `.contiguous()`).
-* **NumPy/TF:** Returns $N \times H \times W \times C$.
+### 1. Framework-Aware Layouts ($NCHW$ vs $NHWC$)
+One of the most frequent errors in Computer Vision pipelines is passing the incorrect channel layout to a model. `img2tensor` automatically detects your `tensor_type` and reorders dimensions accordingly:
+* **PyTorch:** Returns $N \times C \times H \times W$ and ensures memory is `.contiguous()`.
+* **NumPy/TensorFlow:** Returns $N \times H \times W \times C$.
 
+### 2. Lossless vs. Lossy Augmentation
+Standard library rotations often use `rotate()` or `warpAffine()`, which introduce interpolation blur and "black triangle" artifacts at the corners. `img2tensor` enforces a **Lossless Philosophy**:
+* **Memory Permutations:** We use pure NumPy axis permutations (`rot90`, `fliplr`) to perform geometric transformations.
+* **Bit-Perfect Integrity:** Because these operations simply rearrange existing memory addresses, they are mathematically perfect—no new pixel values are "guessed," and the original image signal remains identical.
+
+
+
+### 3. Synchronized High-Fidelity Resizing
+Standard libraries (PIL vs. OpenCV) often have different default behaviors for interpolation. `img2tensor` synchronizes interpolation flags between both backends:
+* **Default Bicubic:** We default to **Bicubic** interpolation over the standard Bilinear to ensure sharper edges and better detail retention for deep learning features.
+* **Letterboxing:** When `preserve_aspect_ratio` is enabled, we use a letterboxing strategy that scales the image to fit the target dimensions without distortion, padding the remaining area with a consistent color.
+
+
+
+### 4. Deterministic Parallelism
+In most libraries, multi-threading can break reproducibility because the order of operations depends on thread scheduling.
+* **Per-Path Seeding:** `img2tensor` pre-calculates an independent seed for every image path *before* starting the thread pool.
+* **Guarantee:** This ensures that a specific `augmentation_seed` will produce the exact same augmented batch regardless of your hardware, the number of workers (`n_jobs`), or the thread execution order.
+
+### 5. Industrial-Grade Memory Safety
+To prevent the "OOM (Out-Of-Memory) Crash" common when processing large datasets, the library utilizes `psutil` to monitor real-time available RAM.
+* **RAM Thresholding:** We cap memory usage at **70%** of available system RAM.
+* **Auto-Chunking:** The utility automatically calculates the memory footprint of your request and chunks the dataset into `safe_batch_size` groups, allowing you to process millions of images on a standard workstation without crashing the kernel.
+
+---
 
 
 ## 📄 License
