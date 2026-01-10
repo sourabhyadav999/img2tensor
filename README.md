@@ -61,8 +61,8 @@ Resize images while maintaining the original aspect ratio using high-quality bic
 
 import img2tensor
 
-# Returns: torch.Tensor of shape (3, 224, 224)
-# Pads with black (default) to keep the original image proportions
+#### Returns: torch.Tensor of shape (3, 224, 224)
+#### Pads with black (default) to keep the original image proportions
 tensor = img2tensor.get_tensor(
     "input.jpg", 
     tensor_type="pytorch", 
